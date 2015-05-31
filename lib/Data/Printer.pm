@@ -13,7 +13,7 @@ use File::HomeDir ();
 use Fcntl;
 use version 0.77 ();
 
-our $VERSION = '0.35';
+our $VERSION = '0.36';
 
 BEGIN {
     if ($^O =~ /Win32/i) {
@@ -303,7 +303,7 @@ sub _p {
             }
         }
     }
-    
+
     if ( not $found ) {
         # if it's not a class and not a known core type, we must be in
         # a future perl with some type we're unaware of
@@ -716,7 +716,7 @@ sub GLOB {
 sub _unknown {
     my($item, $p) = @_;
     my $ref = ref $item;
-    
+
     my $string = '';
     $string = colored($ref, $p->{color}->{'unknown'});
     return $string;
@@ -728,7 +728,7 @@ sub _class {
 
     # if the user specified a method to use instead, we do that
     if ( $p->{class_method} and my $method = $item->can($p->{class_method}) ) {
-        return $method->($item, $p);
+        return $method->($item, $p) if ref $method eq 'CODE';
     }
 
     my $string = '';
@@ -1112,7 +1112,7 @@ Want to see what's inside a variable in a complete, colored
 and human-friendly way?
 
   use Data::Printer;   # or just "use DDP" for short
-  
+
   p @array;            # no need to pass references
 
 Code above might output something like this (with colors!):
@@ -1689,6 +1689,12 @@ You can't pass more than one variable at a time.
    p($foo);       # right
    p($bar);       # right
 
+You can't use it in variable declarations (it will most likely not do what
+you want):
+
+    p my @array = qw(a b c d);         # wrong
+    my @array = qw(a b c d); p @array; # right
+
 The default mode is to use prototypes, in which you are supposed to pass
 variables, not anonymous structures:
 
@@ -1928,7 +1934,7 @@ To turn Data::Printer's output into HTML, you can do something like:
 
   use HTML::FromANSI;
   use Data::Printer;
-  
+
   my $html_output = ansi2html( p($object, colored => 1) );
 
 In the example above, the C<$html_output> variable contains the
@@ -2096,11 +2102,19 @@ with patches, bug reports, wishlists, comments and tests. They are
 
 =item * Árpád Szász
 
+=item * Athanasios Douitsis (aduitsis)
+
 =item * brian d foy
+
+=item * Chad Granum (exodist)
 
 =item * Chris Prather (perigrin)
 
+=item * David D Lowe (Flimm)
+
 =item * David Golden (xdg)
+
+=item * David Precious (bigpresh)
 
 =item * David Raab
 
@@ -2118,13 +2132,19 @@ with patches, bug reports, wishlists, comments and tests. They are
 
 =item * Fitz Elliott
 
+=item * Frew Schmidt (frew)
+
 =item * Ivan Bessarabov (bessarabv)
 
 =item * J Mash
 
+=item * Jay Allen (jayallen)
+
 =item * Jesse Luehrs (doy)
 
 =item * Joel Berger (jberger)
+
+=item * John S. Anderson (genehack)
 
 =item * Kartik Thakore (kthakore)
 
@@ -2144,13 +2164,25 @@ with patches, bug reports, wishlists, comments and tests. They are
 
 =item * Mike Doherty (doherty)
 
+=item * Nuba Princigalli (nuba)
+
+=item * Olaf Alders (oalders)
+
 =item * Paul Evans (LeoNerd)
+
+=item * Pedro Melo (melo)
 
 =item * Przemysław Wesołek (jest)
 
 =item * Rebecca Turner (iarna)
 
+=item * Renato Cron (renatoCRON)
+
+=item * Ricardo Signes (rjbs)
+
 =item * Rob Hoelz (hoelzro)
+
+=item * sawyer
 
 =item * Sebastian Willing (Sewi)
 
@@ -2164,9 +2196,13 @@ with patches, bug reports, wishlists, comments and tests. They are
 
 =item * Tatsuhiko Miyagawa (miyagawa)
 
+=item * Thomas Sibley (tsibley)
+
 =item * Tim Heaney (oylenshpeegul)
 
 =item * Torsten Raudssus (Getty)
+
+=item * Tokuhiro Matsuno (tokuhirom)
 
 =item * Wesley Dal`Col (blabos)
 
@@ -2208,6 +2244,3 @@ RENDERED INACCURATE OR LOSSES SUSTAINED BY YOU OR THIRD PARTIES OR A
 FAILURE OF THE SOFTWARE TO OPERATE WITH ANY OTHER SOFTWARE), EVEN IF
 SUCH HOLDER OR OTHER PARTY HAS BEEN ADVISED OF THE POSSIBILITY OF
 SUCH DAMAGES.
-
-
-
