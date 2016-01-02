@@ -6,12 +6,15 @@ use Scalar::Util;
 use Sort::Naturally;
 use Carp qw(croak);
 use Clone::PP qw(clone);
+use Package::Stash;
 use if $] >= 5.010, 'Hash::Util::FieldHash' => qw(fieldhash);
 use if $] < 5.010, 'Hash::Util::FieldHash::Compat' => qw(fieldhash);
 use File::Spec;
 use File::HomeDir ();
 use Fcntl;
-use version 0.77 ();
+# This causes strangeness wrt UNIVERSAL on Perl 5.8 with some versions of version.pm.
+# Instead, we now require version in the VSTRING() method.
+# use version 0.77 ();
 
 our $VERSION = '0.36';
 
@@ -39,6 +42,7 @@ my $properties = {
     'end_separator'  => 0,
     'show_tied'      => 1,
     'show_tainted'   => 1,
+    'show_unicode'   => 0,
     'show_weak'      => 1,
     'show_readonly'  => 0,
     'show_lvalue'    => 1,
@@ -71,6 +75,7 @@ my $properties = {
         'caller_info' => 'bright_cyan',
         'weak'        => 'cyan',
         'tainted'     => 'red',
+        'unicode'     => 'bright_yellow',
         'escaped'     => 'bright_red',
         'unknown'     => 'bright_yellow on_blue',
     },
@@ -347,6 +352,9 @@ sub SCALAR {
 
     $string .= ' ' . colored('(TAINTED)', $p->{color}->{'tainted'})
         if $p->{show_tainted} and Scalar::Util::tainted($$item);
+
+    $string .= ' ' . colored('(U)', $p->{color}->{'unicode'})
+        if $p->{show_unicode} and utf8::is_utf8($$item);
 
     $p->{_tie} = ref tied $$item;
 
@@ -645,7 +653,9 @@ sub Regexp {
 
 sub VSTRING {
     my ($item, $p) = @_;
+    eval { require version };
     my $string = '';
+    # This will raise an error if we have version < 0.77;
     $string .= colored(version->declare($$item)->normal, $p->{color}->{'vstring'});
     return $string;
 }
@@ -758,8 +768,6 @@ sub _class {
 
         # Package::Stash dies on blessed XS
         eval {
-            require Package::Stash;
-
             my $stash = Package::Stash->new($ref);
 
             if ( my @superclasses = @{$stash->get_symbol('@ISA')||[]} ) {
@@ -786,6 +794,10 @@ sub _class {
                 }
             }
         };
+        if ($@) {
+            warn "*** WARNING *** Could not get superclasses for $ref: $@"
+                unless $@ =~ / is not a module name at /;
+        }
 
         $string .= _show_methods($ref, $p)
             if $p->{class}{show_methods} and $p->{class}{show_methods} ne 'none';
@@ -867,6 +879,10 @@ sub _show_methods {
                            @{mro::get_linear_isa($ref)},
                            $p->{class}{universal} ? 'UNIVERSAL' : ()
     };
+    if ($@) {
+        warn "*** WARNING *** Could not get all_methods for $ref: $@"
+           unless $@ =~ / is not a module name at /;
+    }
 
 METHOD:
     foreach my $method (@all_methods) {
