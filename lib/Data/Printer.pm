@@ -16,7 +16,7 @@ use Fcntl;
 # Instead, we now require version in the VSTRING() method.
 # use version 0.77 ();
 
-our $VERSION = '0.36';
+our $VERSION = '0.40';
 
 BEGIN {
     if ($^O =~ /Win32/i) {
@@ -25,9 +25,7 @@ BEGIN {
     }
 }
 
-
 # defaults
-my $BREAK = "\n";
 my $properties = {
     'name'           => 'var',
     'indent'         => 4,
@@ -103,8 +101,8 @@ my $properties = {
         CODE    => [ \&CODE     ],
         GLOB    => [ \&GLOB     ],
         VSTRING => [ \&VSTRING  ],
-        LVALUE  => [ \&LVALUE ],
-        FORMAT  => [ \&FORMAT ],
+        LVALUE  => [ \&LVALUE   ],
+        FORMAT  => [ \&FORMAT   ],
         Regexp  => [ \&Regexp   ],
         -unknown=> [ \&_unknown ],
         -class  => [ \&_class   ],
@@ -112,7 +110,7 @@ my $properties = {
 
     _output          => *STDERR,     # used internally
     _current_indent  => 0,           # used internally
-    _linebreak       => \$BREAK,     # used internally
+    _linebreak       => "\n",        # used internally
     _seen            => {},          # used internally
     _seen_override   => {},          # used internally
     _depth           => 0,           # used internally
@@ -220,15 +218,14 @@ sub _data_printer {
 
     croak 'When calling p() without prototypes, please pass arguments as references'
         unless ref $_[0];
-
     my ($item, %local_properties) = @_;
     local %ENV = %ENV;
-
     my $p = _merge(\%local_properties);
+
     unless ($p->{multiline}) {
-        $BREAK = ' ';
-        $p->{'indent'} = 0;
-        $p->{'index'}  = 0;
+        $p->{'_linebreak'} = ' ';
+        $p->{'indent'}     = 0;
+        $p->{'index'}      = 0;
     }
 
     # We disable colors if colored is set to false.
@@ -378,12 +375,12 @@ sub _is_number {
         -?          # number can start with minus, but can't start with plus
                     # is scalar starts with plus it is not number
 
-        [0-9-]+     # then there should be some numbers
+        [0-9]+      # then there should be some numbers
 
         ( \. [0-9]+ )?      # there can be decimal part, which is optional
 
         ( e [+-] [0-9]+ )?  # then there can be optional exponential notation part
-        $
+        \z
     /x;
 
     return $is_number;
@@ -451,7 +448,7 @@ sub ARRAY {
         $string .= '[]';
     }
     else {
-        $string .= "[$BREAK";
+        $string .= "[$p->{_linebreak}";
         $p->{_current_indent} += $p->{indent};
 
         foreach my $i (0 .. $#{$item} ) {
@@ -482,7 +479,7 @@ sub ARRAY {
             $string .= $p->{separator}
               if $i < $#{$item} || $p->{end_separator};
 
-            $string .= $BREAK;
+            $string .= $p->{_linebreak};
 
             my $size = 2 + length($i); # [10], [100], etc
             substr $p->{name}, -$size, $size, '';
@@ -542,7 +539,7 @@ sub HASH {
         $string .= '{}';
     }
     else {
-        $string .= "{$BREAK";
+        $string .= "{$p->{_linebreak}";
         $p->{_current_indent} += $p->{indent};
 
         my $total_keys  = scalar keys %$item;
@@ -615,7 +612,7 @@ sub HASH {
             $string .= $p->{separator}
               if --$total_keys > 0 || $p->{end_separator};
 
-            $string .= $BREAK;
+            $string .= $p->{_linebreak};
 
             my $size = 2 + length($raw_key); # {foo}, {z}, etc
             substr $p->{name}, -$size, $size, '';
@@ -663,7 +660,7 @@ sub VSTRING {
 sub FORMAT {
     my ($item, $p) = @_;
     my $string = '';
-    $string .= colored("FORMAT", $p->{color}->{'format'});
+    $string .= colored('FORMAT', $p->{color}->{'format'});
     return $string;
 }
 
@@ -756,8 +753,7 @@ sub _class {
     if ($p->{class}{expand} eq 'all'
         or $p->{class}{expand} >= $p->{class}{_depth}
     ) {
-        $string .= "  {$BREAK";
-
+        $string .= "  {$p->{_linebreak}";
         $p->{_current_indent} += $p->{indent};
 
         if ($] >= 5.010) {
@@ -776,7 +772,7 @@ sub _class {
                             . 'Parents       '
                             . join(', ', map { colored($_, $p->{color}->{'class'}) }
                                          @superclasses
-                            ) . $BREAK;
+                            ) . $p->{_linebreak};
                 }
 
                 if ( $p->{class}{linear_isa} and
@@ -790,7 +786,7 @@ sub _class {
                             . 'Linear @ISA   '
                             . join(', ', map { colored( $_, $p->{color}->{'class'}) }
                                       @{mro::get_linear_isa($ref)}
-                            ) . $BREAK;
+                            ) . $p->{_linebreak};
                 }
             }
         };
@@ -808,7 +804,7 @@ sub _class {
 
             local $p->{_reftype} = Scalar::Util::reftype $item;
             $string .= _p($item, $p);
-            $string .= $BREAK;
+            $string .= $p->{_linebreak};
         }
 
         $p->{_current_indent} -= $p->{indent};
@@ -914,7 +910,7 @@ METHOD:
                  . (@list ? ' : ' : '')
                  . join(', ', map { colored($_, $p->{color}->{method}) }
                               @list
-                   ) . $BREAK;
+                   ) . $p->{_linebreak};
     }
 
     return $string;
@@ -942,7 +938,7 @@ sub _get_info_message {
     $message =~ s/\b__FILENAME__\b/$caller[1]/g;
     $message =~ s/\b__LINE__\b/$caller[2]/g;
 
-    return colored($message, $p->{color}{caller_info}) . $BREAK;
+    return colored($message, $p->{color}{caller_info}) . $p->{_linebreak};
 }
 
 
@@ -1412,6 +1408,7 @@ customization options available, as shown below (with default values):
       deparse        => 0,       # use B::Deparse to expand (expose) subroutines
       show_tied      => 1,       # expose tied variables
       show_tainted   => 1,       # expose tainted variables
+      show_unicode   => 0,       # show unicode flag if it exists
       show_weak      => 1,       # expose weak references
       show_readonly  => 0,       # expose scalar variables marked as read-only
       show_lvalue    => 1,       # expose lvalue types
@@ -2110,6 +2107,8 @@ with patches, bug reports, wishlists, comments and tests. They are
 
 =over 4
 
+=item * Adam Rosenstein
+
 =item * Allan Whiteford
 
 =item * Andreas König
@@ -2120,11 +2119,15 @@ with patches, bug reports, wishlists, comments and tests. They are
 
 =item * Athanasios Douitsis (aduitsis)
 
+=item * Baldur Kristinsson
+
 =item * brian d foy
 
 =item * Chad Granum (exodist)
 
 =item * Chris Prather (perigrin)
+
+=item * Dave Mitchell
 
 =item * David D Lowe (Flimm)
 
@@ -2158,6 +2161,8 @@ with patches, bug reports, wishlists, comments and tests. They are
 
 =item * Jesse Luehrs (doy)
 
+=item * Jim Keenan (jkeenan)
+
 =item * Joel Berger (jberger)
 
 =item * John S. Anderson (genehack)
@@ -2172,11 +2177,15 @@ with patches, bug reports, wishlists, comments and tests. They are
 
 =item * Marcel Grünauer (hanekomu)
 
+=item * Marco Masetti (grubert65)
+
 =item * Mark Fowler (Trelane)
 
 =item * Matt S. Trout (mst)
 
 =item * Maxim Vuets
+
+=item * Michael Conrad
 
 =item * Mike Doherty (doherty)
 
@@ -2220,9 +2229,13 @@ with patches, bug reports, wishlists, comments and tests. They are
 
 =item * Tokuhiro Matsuno (tokuhirom)
 
+=item * vividsnow
+
 =item * Wesley Dal`Col (blabos)
 
 =item * Yanick Champoux (yanick)
+
+=item * Zefram
 
 =back
 
@@ -2231,7 +2244,7 @@ If I missed your name, please drop me a line!
 
 =head1 LICENSE AND COPYRIGHT
 
-Copyright 2011 Breno G. de Oliveira C<< <garu at cpan.org> >>. All rights reserved.
+Copyright 2011-2017 Breno G. de Oliveira C<< <garu at cpan.org> >>. All rights reserved.
 
 This module is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself. See L<perlartistic>.
